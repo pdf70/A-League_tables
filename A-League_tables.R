@@ -1,9 +1,10 @@
 # Filename: "A-League_tables.R"
 
 # Reads in data from wikipedia of history of all A-league tables
-# Note that the format of the input data may change as people change wikipedia entries.
+# Note that the forma of the input data may change as people change wikipedia entries
 
 # Team colours in HTML format from https://imagecolorpicker.com/en.
+# Could also source from https://sportsfancovers.com/a-league-color-codes/
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Libraries & directories
@@ -32,14 +33,14 @@ library(rvest)
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Parameters 
 
-# From 2005-06 to 2018-19
-end_yr = seq(2006, 2019, by = 1)
+# From 2005-06 to 2019-20
+end_yr = seq(2006, 2020, by = 1)
 start_yr = end_yr - 1
 seasons = paste(start_yr, "-", substr(end_yr,3,4), sep = "")
 
 # manually identify which table on wikipedia page shows the league table
 # Note: will need to amend values if on wikipedia a new table is inserted above the league table
-wiki_table_no = c(6, rep(4,3), 5, 5, rep(6,8))
+wiki_table_no = c(6, rep(4,3), 5, 5, rep(6,9))
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Functions 
@@ -54,9 +55,11 @@ make_graph = function(team_abbrev) {
   max_yr = max(data_for_graph$yr_end)
   
   #Breaks for background rectangles, other formatting
-  rects = data.frame(xstart = c(-Inf,2009.5,2011.5), xend = c(2009.5, 2010.5, Inf),
+  # Update these values wnever the no. of teams in the league changes
+  rects = data.frame(xstart = c(-Inf,2009.5,2011.5), xend = c(2009.5, 2010.5, 2019.5),
                      ystart = c(11, 11, 11), yend = c(8, 10, 10))
   x_intercepts = data_for_graph$yr_end[(data_for_graph$yr_end %% 5) == 0]
+  x_intercepts = x_intercepts[!(x_intercepts ==max_yr)]
   
   # Graph of league position
   graph_1 = ggplot(data_for_graph, aes(x = yr_end, y = Pos)) +
@@ -117,6 +120,7 @@ for (j in 1:length(seasons)) {
 }
 
 header = colnames(tables[[1]]) %>%
+  str_replace("\\.mw-parser.*","") %>%
   str_replace("\\[.*\\]", "")                      # remove text inside square brackets
 
 for (j in 1:length(seasons)) {
@@ -153,9 +157,23 @@ teams$current_name = ifelse(teams$previous_name == "Queensland Roar", "Brisbane 
 teams_all = left_join(teams, a_league_teams, by = c("current_name" = "current_name"))
 
 a_league_tables_all = left_join(a_league_tables, teams_all, by = c("Team" = "previous_name"))
-a_league_tables = a_league_tables_all
-rm("a_league_tables_all")
 
+# Add additional information of previous season's finishing position
+a_league_tables = a_league_tables_all %>%
+  arrange(current_name, season_no) %>%
+  mutate(prev_pos = ifelse(current_name == lag(current_name), lag(Pos), NA)) %>%
+  arrange(season_no, Pos) %>%
+  mutate(pos_diff = ifelse(is.na(prev_pos), NA, Pos - prev_pos),
+         pos_abs_diff = abs(pos_diff)) %>%
+  group_by(current_name) %>%
+  mutate(cum_champions = cumsum(champion),
+         cum_premiers = cumsum(premiers),
+         cum_finals = cumsum(finals),
+         streak_finals = c(ave(c(0, finals), cumsum(c(0, finals) == 0), FUN = seq_along) - 1)[-1],
+         streak_missed_finals = c(ave(c(0, finals), cumsum(c(0, finals) > 0), FUN = seq_along) - 1)[-1]) %>%
+  ungroup()
+
+rm("a_league_tables_all")
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Analysis of A-League tables data
@@ -195,6 +213,67 @@ season_totals = group_by(a_league_tables, season, yr_end) %>%
             Total_GA = sum(GA),
             Total_GD = sum(goal_diff),
             Total_Pts = sum(Pts))
+
+# Records for a single season
+# most & least points
+most_pts_season = arrange(a_league_tables, desc(Pts)) %>%
+  select(season, Team, Pld, Pts)
+head(most_pts_season, 5)
+
+least_pts_season = arrange(a_league_tables, Pts) %>%
+  select(season, Team, Pld, Pts)
+head(least_pts_season, 5)
+
+
+# most & least goals scored
+most_goals_season = arrange(a_league_tables, desc(GF)) %>%
+  select(season, Team, Pld, GF)
+head(most_goals_season, 5)
+
+least_goals_season = arrange(a_league_tables, GF) %>%
+  select(season, Team, Pld, GF)
+head(least_goals_season, 5)
+
+
+# most & least goals conceded
+most_goals_against_season = arrange(a_league_tables, desc(GA)) %>%
+  select(season, Team, Pld, GA)
+head(most_goals_against_season, 5)
+
+least_goals_against_season = arrange(a_league_tables, GA) %>%
+  select(season, Team, Pld, GA)
+head(least_goals_against_season, 5)
+
+
+# highest movement in final position
+highest_mvmt_up_season = arrange(a_league_tables, desc(pos_diff)) %>%
+  select(season, Team, Pos, prev_pos, pos_diff)
+head(highest_mvmt_up_season, 5)
+
+highest_mvmt_down_season = arrange(a_league_tables, pos_diff) %>%
+  select(season, Team, Pos, prev_pos, pos_diff)
+head(highest_mvmt_down_season, 5)
+
+
+# volatility of position from year to year
+pos_changes = a_league_tables %>%
+  group_by(current_name) %>%
+  summarise(count_seasons = n(),
+            total_pos_diff = sum(pos_abs_diff, na.rm = TRUE)) %>%
+  mutate(ave_mvmt = total_pos_diff / (count_seasons - 1)) %>%
+  arrange(desc(ave_mvmt))
+pos_changes
+
+
+# Longest streaks
+longest_streaks_finals = arrange(a_league_tables, desc(streak_finals)) %>%
+  select(season, Team, streak_finals)
+head(longest_streaks_finals, 5)
+
+longest_streaks_missed_finals = arrange(a_league_tables, desc(streak_missed_finals)) %>%
+  select(season, Team, streak_missed_finals)
+head(longest_streaks_missed_finals, 5)
+
 
 # no. of teams in finals
 finals_teams = a_league_tables %>% 
@@ -237,12 +316,13 @@ make_graph("NEW")
 make_graph("PER")
 make_graph("BRI")
 make_graph("MVI") 
-make_graph("NZK")
+#make_graph("NZK")
 make_graph("WEL")
-make_graph("GCU")
-make_graph("NQF")
+#make_graph("GCU")
+#make_graph("NQF")
 make_graph("MCI")
 make_graph("WSW")
+make_graph("WUN")
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -250,8 +330,9 @@ make_graph("WSW")
 names(all_time) <- gsub(x = names(all_time), pattern = "_", replacement = " ") 
 
 setwd(output_path)
-write.csv(a_league_tables, file = "A_league_tables_all.csv")
-write.csv(all_time, file = "A_league_all_time.csv")
+#write.csv(a_league_tables, file = "A_league_tables_all.csv")
+write.csv(a_league_tables_temp, file = "A_league_tables_all_temp.csv")
+#write.csv(all_time, file = "A_league_all_time.csv")
 setwd(path) 
 
 # export single graph
@@ -264,6 +345,7 @@ for (i in 1:length(teams_unique)) {
   make_graph(teams_unique[i])
   setwd(output_path)
   ggsave(paste("graph_ggsave_", teams_unique[i], ".pdf", sep=""))
+  ggsave(paste("graph_ggsave_", teams_unique[i], ".png", sep=""))
 }
 setwd(path)
 

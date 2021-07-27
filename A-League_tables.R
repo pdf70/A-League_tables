@@ -3,15 +3,16 @@
 # Reads in data from wikipedia of history of all A-league tables
 # Note that the forma of the input data may change as people change wikipedia entries
 
-# Team colours in HTML format from https://imagecolorpicker.com/en.
+# Team colours in HTML format from A-League_kit_colours.R
 # Could also source from https://sportsfancovers.com/a-league-color-codes/
+# or from https://imagecolorpicker.com/en.
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Libraries & directories
 
 # Read in data files
-path = "C:/Users/Hollie/Documents/Pete/R-files"
-input_path = paste(path, "/input", sep="")
+path = "C:/Users/fallo/OneDrive/Documents/Pete/R-files"
+input_path = paste(path, "/Input", sep="")
 output_path = paste(path, "/R_output", sep="")
 
 setwd(path)
@@ -33,14 +34,18 @@ library(rvest)
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Parameters 
 
-# From 2005-06 to 2019-20
-end_yr = seq(2006, 2020, by = 1)
+# From 2005-06 to 2020-21
+end_yr = seq(2006, 2021, by = 1)
 start_yr = end_yr - 1
 seasons = paste(start_yr, "-", substr(end_yr,3,4), sep = "")
 
-# manually identify which table on wikipedia page shows the league table
-# Note: will need to amend values if on wikipedia a new table is inserted above the league table
-wiki_table_no = c(6, rep(4,3), 5, 5, rep(6,9))
+# Manually identify which table on wikipedia page shows the league table.
+# Note: need to amend values if on wikipedia a new table is inserted above the league table
+wiki_table_no = c(6, rep(4,3), 5, 5, rep(6,10))
+
+# Alternative is to use template as location for wikipedia table, when all become available
+# wiki_table_no = c(rep(1, length(seasons)))
+
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Functions 
@@ -55,9 +60,9 @@ make_graph = function(team_abbrev) {
   max_yr = max(data_for_graph$yr_end)
   
   #Breaks for background rectangles, other formatting
-  # Update these values wnever the no. of teams in the league changes
-  rects = data.frame(xstart = c(-Inf,2009.5,2011.5), xend = c(2009.5, 2010.5, 2019.5),
-                     ystart = c(11, 11, 11), yend = c(8, 10, 10))
+  # Update these values whenever the no. of teams in the league changes
+  rects = data.frame(xstart = c(-Inf, 2009.5, 2010.5, 2011.5), xend = c(2009.5, 2010.5, 2011.5, 2019.5),
+                     ystart = c(12, 12, 12, 12), yend = c(8, 10, 11, 10))
   x_intercepts = data_for_graph$yr_end[(data_for_graph$yr_end %% 5) == 0]
   x_intercepts = x_intercepts[!(x_intercepts ==max_yr)]
   
@@ -98,6 +103,7 @@ make_graph = function(team_abbrev) {
 setwd(input_path)
 
 a_league_teams = read_csv("a_league_teams.csv")
+a_league_tables_previous = read_csv("a_league_tables_prev.csv")
 
 # read all league tables in one loop
 # to read a league table manually, see A-League_workings.R
@@ -108,7 +114,7 @@ for (j in 1:length(seasons)) {
     html_nodes(".wikitable") %>%
     html_table(fill = TRUE)
   
-  tables[[j]] <- tables_wiki[[wiki_table_no[j]]] %>% # added to my list
+  tables[[j]] <- tables_wiki[[wiki_table_no[j]]]  %>% # added to my list
     mutate(season_no = j, season = seasons[j])
 }
 
@@ -128,7 +134,30 @@ for (j in 1:length(seasons)) {
 }
 
 # convert from list to data frame
-tables_all = do.call(rbind, lapply(tables, as.data.frame))
+tables_method1 = do.call(rbind, lapply(tables, as.data.frame))
+
+
+#Alternative to target table better for 2019-20 season subscript range error in rvest
+tables_df = c()
+tables_method2 = c()
+for (j in 15:length(seasons)) {
+  table <- read_html(paste("https://en.wikipedia.org/wiki/", seasons[j], "_A-League", sep = ""))
+  tables_wiki = table %>%
+    html_node(xpath=".//table[contains(., 'Pts')]") %>%
+    html_table(fill = TRUE)
+  
+  tables_df <- tables_wiki %>% # added to my list
+    mutate(season_no = j, season = seasons[j])
+  tables_method2 = rbind(tables_method2, tables_df)
+}
+colnames(tables_method2) = header
+tables_method2$Pts = as.character(tables_method2$Pts)
+
+# if rvest problem exists
+#tables_all = bind_rows(tables_method1, tables_method2)
+# if rvest problem fixed
+tables_all = tables_method1
+
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Select relevant data, and then data manipulations
@@ -138,12 +167,12 @@ a_league_tables = tables_all %>%
          premiers = ifelse(Pos == 1, 1, 0),
          finals = ifelse(str_detect(tolower(Qualification), pattern = "finals"), 1, 0),
          Team = str_replace(Team, " \\(C\\)", ""),            # to get consistency in team name
-         Pts = str_replace(Pts, "\\[.*\\]", ""),
+         Pts = as.numeric(str_replace(Pts, "\\[.*\\]", "")),
          pts_deducted = as.numeric(Pts) - (3 * W + D),
+         max_avail_pts = Pld * 3,
+         pts_achieved_perc = Pts / max_avail_pts,
          goal_diff = GF - GA,
          yr_end = as.numeric(substr(season, 1, 4)) + 1)
-
-a_league_tables$Pts = as.numeric(a_league_tables$Pts)
 
 
 # Create a table of team names, including history & past team name changes
@@ -162,6 +191,7 @@ a_league_tables_all = left_join(a_league_tables, teams_all, by = c("Team" = "pre
 a_league_tables = a_league_tables_all %>%
   arrange(current_name, season_no) %>%
   mutate(prev_pos = ifelse(current_name == lag(current_name), lag(Pos), NA)) %>%
+  mutate(next_pos = ifelse(current_name == lead(current_name), lead(Pos), NA)) %>%
   arrange(season_no, Pos) %>%
   mutate(pos_diff = ifelse(is.na(prev_pos), NA, Pos - prev_pos),
          pos_abs_diff = abs(pos_diff)) %>%
@@ -214,7 +244,7 @@ season_totals = group_by(a_league_tables, season, yr_end) %>%
             Total_GD = sum(goal_diff),
             Total_Pts = sum(Pts))
 
-# Records for a single season
+# Records for a single season - not adjusted for no. of games
 # most & least points
 most_pts_season = arrange(a_league_tables, desc(Pts)) %>%
   select(season, Team, Pld, Pts)
@@ -245,14 +275,39 @@ least_goals_against_season = arrange(a_league_tables, GA) %>%
 head(least_goals_against_season, 5)
 
 
+# highest & lowest points achieved percentage
+highest_pts_perc_season = arrange(a_league_tables, desc(pts_achieved_perc)) %>%
+  select(season, Team, Pld, Pts, max_avail_pts, pts_achieved_perc)
+head(highest_pts_perc_season, 5)
+
+lowest_pts_perc_season = arrange(a_league_tables, pts_achieved_perc) %>%
+  select(season, Team, Pld, Pts, max_avail_pts, pts_achieved_perc)
+head(lowest_pts_perc_season, 5)
+
+
 # highest movement in final position
-highest_mvmt_up_season = arrange(a_league_tables, desc(pos_diff)) %>%
+highest_mvmt_up_season = arrange(a_league_tables, pos_diff) %>%
   select(season, Team, Pos, prev_pos, pos_diff)
 head(highest_mvmt_up_season, 5)
 
-highest_mvmt_down_season = arrange(a_league_tables, pos_diff) %>%
+highest_mvmt_down_season = arrange(a_league_tables, desc(pos_diff)) %>%
   select(season, Team, Pos, prev_pos, pos_diff)
 head(highest_mvmt_down_season, 5)
+
+
+# lowest position to champion in one season
+prev_pos_champion = a_league_tables %>%
+  filter(champion == 1) %>%
+  select(season, Team, prev_pos) %>%
+  arrange(desc(prev_pos), season)
+head(prev_pos_champion, 5)
+
+# lowest position after being champion in one season
+next_pos_champion = a_league_tables %>%
+  filter(champion == 1) %>%
+  select(season, Team, next_pos) %>%
+  arrange(desc(next_pos), season)
+head(next_pos_champion, 5)
 
 
 # volatility of position from year to year
@@ -310,7 +365,7 @@ error_check_pos = group_by(a_league_tables, season) %>%
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # run function to produce graph for a specific team
 make_graph("ADE") 
-make_graph("SFC")
+make_graph("SYD")
 make_graph("CCM") 
 make_graph("NEW")
 make_graph("PER")
@@ -323,6 +378,7 @@ make_graph("WEL")
 make_graph("MCI")
 make_graph("WSW")
 make_graph("WUN")
+make_graph("MAC")
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -330,9 +386,8 @@ make_graph("WUN")
 names(all_time) <- gsub(x = names(all_time), pattern = "_", replacement = " ") 
 
 setwd(output_path)
-#write.csv(a_league_tables, file = "A_league_tables_all.csv")
-write.csv(a_league_tables_temp, file = "A_league_tables_all_temp.csv")
-#write.csv(all_time, file = "A_league_all_time.csv")
+write.csv(a_league_tables, file = "A_league_tables_all.csv")
+write.csv(all_time, file = "A_league_all_time.csv")
 setwd(path) 
 
 # export single graph

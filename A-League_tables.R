@@ -61,8 +61,9 @@ make_graph = function(team_abbrev) {
   
   #Breaks for background rectangles, other formatting
   # Update these values whenever the no. of teams in the league changes
-  rects = data.frame(xstart = c(-Inf, 2009.5, 2010.5, 2011.5), xend = c(2009.5, 2010.5, 2011.5, 2019.5),
-                     ystart = c(12, 12, 12, 12), yend = c(8, 10, 11, 10))
+  rects = data.frame(xstart = c(-Inf, 2009.5, 2010.5, 2011.5, 2019.5), 
+                     xend = c(2009.5, 2010.5, 2011.5, 2019.5, 2020.5),
+                     ystart = c(12, 12, 12, 12, 12), yend = c(8, 10, 11, 10, 11))
   x_intercepts = data_for_graph$yr_end[(data_for_graph$yr_end %% 5) == 0]
   x_intercepts = x_intercepts[!(x_intercepts ==max_yr)]
   
@@ -172,8 +173,11 @@ a_league_tables = tables_all %>%
          max_avail_pts = Pld * 3,
          pts_achieved_perc = Pts / max_avail_pts,
          goal_diff = GF - GA,
-         yr_end = as.numeric(substr(season, 1, 4)) + 1)
-
+         yr_end = as.numeric(substr(season, 1, 4)) + 1) %>%
+  group_by(season) %>%
+  mutate(wooden_spoon = ifelse(Pos == max(Pos), 1, 0)) %>%
+  ungroup() %>%
+  select(Pos:finals, wooden_spoon, pts_deducted:yr_end)
 
 # Create a table of team names, including history & past team name changes
 teams = as.tibble(unique(a_league_tables$Team))
@@ -222,6 +226,7 @@ all_time = group_by(a_league_tables, current_name) %>%
             count_premiers = sum(premiers),
             count_finals = sum(finals),
             best = min(Pos),
+            count_spoon = sum(wooden_spoon),
             first_season = min(season),
             last_season = max(season)) %>%
   arrange(desc(Total_Pts), desc(Total_GD), desc(Total_GF))
@@ -399,7 +404,7 @@ setwd(path)
 for (i in 1:length(teams_unique)) {
   make_graph(teams_unique[i])
   setwd(output_path)
-  ggsave(paste("graph_ggsave_", teams_unique[i], ".pdf", sep=""))
+#  ggsave(paste("graph_ggsave_", teams_unique[i], ".pdf", sep=""))
   ggsave(paste("graph_ggsave_", teams_unique[i], ".png", sep=""))
 }
 setwd(path)

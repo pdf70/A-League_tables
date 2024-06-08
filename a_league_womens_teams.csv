@@ -1,0 +1,13 @@
+current_name,abbrev,team_colours,second_colour,prev_team_colours,prev_second_colour,backup_team_colours,backup_second_colour,team_url
+Adelaide United,ADE,#D50032,navyblue,#D10211,navyblue,#E3001B,navyblue,/wiki/Adelaide_United_FC_(A-League_Women)
+Brisbane Roar,BRI,#F26522,black,#FE9717,black,#CB601C,black,/wiki/Brisbane_Roar_FC_(A-League_Women)
+Canberra United,CAN,#94c841,black,#94c841,black,limegreen,black,/wiki/Canberra_United_FC
+Central Coast Mariners,CCM,#FEDF00,navyblue,#FEEB68,navyblue,#F8BE02,navyblue,/wiki/Central_Coast_Mariners_FC_(A-League_Women)
+Melbourne City,MCI,#81C1FF,red,#70A3CC,red,#0355AF,red,/wiki/Melbourne_City_FC_(A-League_Women)
+Melbourne Victory,MVI,#000030,#3E444D,#050F2C,#3E444D,navyblue,white,/wiki/Melbourne_Victory_FC_(A-League_Women)
+Newcastle Jets,NEW,#00388D,red,#3275E1,red,blue,red,/wiki/Newcastle_Jets_FC_(A-League_Women)
+Perth Glory,PER,#470A68,yellow,#522968,yellow,purple,yellow,/wiki/Perth_Glory_FC_(A-League_Women)
+Sydney FC,SYD,#77BBFF,#274A71,#68AEE8,#274A71,lightblue,navyblue,/wiki/Sydney_FC_(A-League_Women)
+Wellington Phoenix,WEL,#E3C922,black,#E3C922,black,yellow,black,/wiki/Wellington_Phoenix_FC_(A-League_Women)
+Western Sydney Wanderers,WSW,#000000,#CD1231,#000000,#CD1231,#000000,red,/wiki/Western_Sydney_Wanderers_FC_(A-League_Women)
+Western United,WUN,#2bb56c,black,#2bb56c,black,#2bb56c,black,/wiki/Western_United_FC_(A-League_Women)

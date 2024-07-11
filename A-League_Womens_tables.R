@@ -1,11 +1,16 @@
 # Filename: "A-League_Womens_tables.R"
 
 # Reads in data from wikipedia of history of all A-league Women's tables
-# Note that the forma of the input data may change as people change wikipedia entries
+# Note that the format of the input data may change as people change wikipedia entries
 
 # Team colours in HTML format from A-League_kit_colours.R
 # Could also source from https://sportsfancovers.com/a-league-color-codes/
 # or from https://imagecolorpicker.com/en.
+
+# Retrieve previous work from:
+#setwd(output_path) 
+#load(file = "a_league_womens_tables_raw.Rdata")     # list - "tables"
+#load(file="a_league_womens_tables.Rdata")
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -15,22 +20,14 @@
 path = "C:/Users/fallo/OneDrive/Documents/Pete/R-files"
 input_path = paste(path, "/Input", sep="")
 output_path = paste(path, "/R_output", sep="")
-
 setwd(path)
-# create a directory for the output data if it does not already exist
-ifelse(!dir.exists("R_output"), dir.create("R_output"), "Directory already exists")
 
-# move up one directory and down one to R_output
-#setwd("../R_output/")
-
-
-# Specify packages (libraries) that are commonly used
+# Specify packages (libraries) that are used
 library(lubridate)
 library(tidyverse)
 library(scales)
+library(rvest)    # Reading tables from a web page
 
-# Reading tables from a wikipedia page
-library(rvest)
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Parameters 
@@ -56,11 +53,12 @@ make_graph = function(team_abbrev) {
   data_for_graph = a_league_womens_tables %>% 
     filter(abbrev == team_abbrev)
   
-  max_teams_in_season = max(season_totals$count)
+  max_teams_in_season = max(data_for_graph$count_teams)
   start_yr = min(data_for_graph$season)
   end_yr = max(data_for_graph$season)
   min_yr = min(data_for_graph$yr_end)
   max_yr = max(data_for_graph$yr_end)
+  discont_yr = ifelse(team_abbrev == "CCM", 2010, 2099)
   
   #Breaks for background rectangles, other formatting
   # Update these values whenever the no. of teams in the league changes
@@ -71,10 +69,10 @@ make_graph = function(team_abbrev) {
   x_intercepts = x_intercepts[!(x_intercepts ==max_yr)]
   
   # Graph of league position
-  graph_1 = ggplot(data_for_graph, aes(x = yr_end, y = Pos)) +
+  graph_1 = ggplot(data_for_graph, aes(x = yr_end, y = Pos, group=yr_end<=discont_yr)) +
     geom_line(linewidth=1.15, colour = data_for_graph$team_colours[1]) +
     geom_point(aes(colour=as.factor(champion), size = as.factor(champion))) +
-    scale_colour_manual(values = c(data_for_graph$second_colour[1], "red")) +  # colours for geom_points
+    scale_colour_manual(values = c(data_for_graph$second_colour[1], data_for_graph$champ_colour[1])) +
     scale_size_manual(values = c(2,4)) +
     
     # axes
@@ -90,6 +88,7 @@ make_graph = function(team_abbrev) {
     ggtitle(paste("A-League Women's Position of", data_for_graph$current_name[1], "from", start_yr, "to", end_yr)) + 
     theme(plot.title = element_text(lineheight=1.0, face="bold", hjust = 0.5)) +
     labs(x="Year", y="Position") +
+    theme(axis.title = element_text(face = "bold")) +
     theme(plot.margin=unit(c(0.5,1,1.5,1.2),"cm")) +
     theme(legend.position = "none") +
     
@@ -105,7 +104,7 @@ make_graph = function(team_abbrev) {
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Read in input files
 setwd(input_path)
-a_league_womens_teams = read_csv("a_league_womens_teams.csv")
+a_leagues_teams = read_csv("a_leagues_teams.csv")
 
 # read all league tables in one loop
 # to read a league table manually, see A-League_workings.R, e.g. read_html("https://en.wikipedia.org/wiki/2019-20_A-League")
@@ -118,6 +117,8 @@ for (j in 1:length(seasons)) {
   
   tables[[j]] <- tables_wiki[[wiki_table_no[j]]]  %>% # added to my list
     mutate(season_no = j, season = seasons[j])
+  
+  if (j%%5==0) print(paste("season = ", seasons[j])) 
 }
 
 # Review headers in each of the tables - need consistency of names for combining tables
@@ -128,8 +129,7 @@ for (j in 1:length(seasons)) {
 }
 
 header = colnames(tables[[1]]) %>%
-  str_replace("\\.mw-parser.*","") %>%
-  str_replace("\\[.*\\]", "")                      # remove text inside square brackets
+  str_replace("\\.mw-parser.*","")
 
 for (j in 1:length(seasons)) {
   colnames(tables[[j]]) = header
@@ -152,11 +152,20 @@ a_league_womens_tables = tables_all %>%
          max_avail_pts = Pld * 3,
          pts_achieved_perc = Pts / max_avail_pts,
          goal_diff = GF - GA,
+         GD_prefix = substr(GD,1,1),
+         GD_sign = case_when(
+           GD_prefix == "+" ~ 1,
+           GD_prefix == "-" ~ -1,
+           GD_prefix == "0" ~ 1,
+           TRUE ~ -1),
+         GD_numeric = ifelse(GD_prefix == "0", 0, as.numeric(substr(GD,2,nchar(GD)))) * GD_sign,
+         GD_check = GD_numeric - goal_diff, 
          yr_end = as.numeric(substr(season, 1, 4)) + 1) %>%
   group_by(season) %>%
-  mutate(wooden_spoon = ifelse(Pos == max(Pos), 1, 0)) %>%
+  mutate(count_teams = n(),
+         wooden_spoon = ifelse(Pos == max(Pos), 1, 0)) %>%
   ungroup() %>%
-  select(Pos:finals, wooden_spoon, pts_deducted:yr_end)
+  select(Pos:finals, count_teams:wooden_spoon, pts_deducted:yr_end)
 
 # Create a table of team names, including history & past team name changes
 teams = as_tibble(unique(a_league_womens_tables$Team))
@@ -166,7 +175,7 @@ teams = teams %>%
 teams$current_name = ifelse(teams$previous_name == "Melbourne Heart", "Melbourne City", teams$current_name)
 teams$current_name = ifelse(teams$previous_name == "Queensland Roar", "Brisbane Roar", teams$current_name)
 
-teams_all = left_join(teams, a_league_womens_teams, by = c("current_name" = "current_name"))
+teams_all = left_join(teams, a_leagues_teams, by = c("current_name" = "current_name"))
 
 a_league_womens_tables_all = left_join(a_league_womens_tables, teams_all, by = c("Team" = "previous_name"))
 
@@ -201,9 +210,16 @@ a_league_womens_all_time = group_by(a_league_womens_tables, current_name) %>%
             Total_GA = sum(GA),
             Total_GD = sum(goal_diff),
             Total_Pts = sum(Pts),
+            pts_per_game = round(sum(Pts) / sum(Pld), 2),
             count_champions = sum(champion),
             count_premiers = sum(premiers),
             count_finals = sum(finals),
+            count_1st = sum(Pos == 1),
+            count_2nd = sum(Pos == 2),
+            count_3rd = sum(Pos == 3),
+            count_4th = sum(Pos == 4),
+            count_5th = sum(Pos == 5),
+            count_6th = sum(Pos == 6),
             best = min(Pos),
             count_spoon = sum(wooden_spoon),
             first_season = min(season),
@@ -223,10 +239,63 @@ season_totals = group_by(a_league_womens_tables, season, yr_end) %>%
             Total_W = sum(W),
             Total_D = sum(D),
             Total_L = sum(L),
+            Total_Ded = sum(pts_deducted),
             Total_GF = sum(GF),
             Total_GA = sum(GA),
             Total_GD = sum(goal_diff),
             Total_Pts = sum(Pts))
+
+title_race_totals = group_by(a_league_womens_tables, season, yr_end) %>%
+  summarise(count = n(),
+            Total_Pts_1 = sum(Pts[Pos == 1]),
+            Total_Pts_2 = sum(Pts[Pos == 2]),
+            Total_GD_1 = sum(goal_diff[Pos == 1]),
+            Total_GD_2 = sum(goal_diff[Pos == 2]),
+            Total_GF_1 = sum(GF[Pos == 1]),
+            Total_GF_2 = sum(GF[Pos == 2])) %>%
+  mutate(margin_pts = Total_Pts_1 - Total_Pts_2,
+         margin_GD = Total_GD_1 - Total_GD_2,
+         margin_GF = Total_GF_1 - Total_GF_2)
+
+# totals by club
+club_records = group_by(a_league_mens_tables, current_name) %>%
+  summarise(highest_GF = max(GF),
+            lowest_GF = min(GF),
+            highest_GA = max(GA),
+            lowest_GA = min(GA),
+            highest_Pts = max(Pts),
+            lowest_Pts = min(Pts))
+
+# Records for each team in a season
+highest_GF_team = club_records %>%
+  left_join(a_league_womens_tables, by = c("current_name" = "current_name",
+                                           "highest_GF" = "GF")) %>%
+  select(current_name, highest_GF, Pld, season)
+
+lowest_GF_team = club_records %>%
+  left_join(a_league_womens_tables, by = c("current_name" = "current_name",
+                                           "lowest_GF" = "GF")) %>%
+  select(current_name, lowest_GF, Pld, season)
+
+highest_GA_team = club_records %>%
+  left_join(a_league_womens_tables, by = c("current_name" = "current_name",
+                                           "highest_GA" = "GA")) %>%
+  select(current_name, highest_GA, Pld, season)
+
+lowest_GA_team = club_records %>%
+  left_join(a_league_womens_tables, by = c("current_name" = "current_name",
+                                           "lowest_GA" = "GA")) %>%
+  select(current_name, lowest_GA, Pld, season)
+
+highest_Pts_team = club_records %>%
+  left_join(a_league_womens_tables, by = c("current_name" = "current_name",
+                                           "highest_Pts" = "Pts")) %>%
+  select(current_name, highest_Pts, Pld, season)
+
+lowest_Pts_team = club_records %>%
+  left_join(a_league_womens_tables, by = c("current_name" = "current_name",
+                                           "lowest_Pts" = "Pts")) %>%
+  select(current_name, lowest_Pts, Pld, season)
 
 # Records for a single season - not adjusted for no. of games
 # most & least points
@@ -238,6 +307,32 @@ least_pts_season = arrange(a_league_womens_tables, Pts) %>%
   select(season, Team, Pld, Pts)
 head(least_pts_season, 5)
 
+# most & least wins
+most_wins_season = arrange(a_league_womens_tables, desc(W)) %>%
+  select(season, Team, Pld, W)
+head(most_wins_season, 5)
+
+least_wins_season = arrange(a_league_womens_tables, W) %>%
+  select(season, Team, Pld, W)
+head(least_wins_season, 5)
+
+# most & least losses
+most_losses_season = arrange(a_league_womens_tables, desc(L)) %>%
+  select(season, Team, Pld, L)
+head(most_losses_season, 5)
+
+least_losses_season = arrange(a_league_womens_tables, L) %>%
+  select(season, Team, Pld, L)
+head(least_losses_season, 5)
+
+# most & least draws
+most_draws_season = arrange(a_league_womens_tables, desc(D)) %>%
+  select(season, Team, Pld, D)
+head(most_draws_season, 5)
+
+least_draws_season = arrange(a_league_womens_tables, D) %>%
+  select(season, Team, Pld, D)
+head(least_draws_season, 5)
 
 # most & least goals scored
 most_goals_season = arrange(a_league_womens_tables, desc(GF)) %>%
@@ -248,7 +343,6 @@ least_goals_season = arrange(a_league_womens_tables, GF) %>%
   select(season, Team, Pld, GF)
 head(least_goals_season, 5)
 
-
 # most & least goals conceded
 most_goals_against_season = arrange(a_league_womens_tables, desc(GA)) %>%
   select(season, Team, Pld, GA)
@@ -258,6 +352,14 @@ least_goals_against_season = arrange(a_league_womens_tables, GA) %>%
   select(season, Team, Pld, GA)
 head(least_goals_against_season, 5)
 
+# best & worst goal difference
+best_goals_diff_season = arrange(a_league_womens_tables, desc(goal_diff)) %>%
+  select(season, Team, Pld, goal_diff)
+head(best_goals_diff_season, 5)
+
+worst_goals_diff_season = arrange(a_league_womens_tables, goal_diff) %>%
+  select(season, Team, Pld, goal_diff)
+head(worst_goals_diff_season, 5)
 
 # highest & lowest points achieved percentage
 highest_pts_perc_season = arrange(a_league_womens_tables, desc(pts_achieved_perc)) %>%
@@ -268,6 +370,32 @@ lowest_pts_perc_season = arrange(a_league_womens_tables, pts_achieved_perc) %>%
   select(season, Team, Pld, Pts, max_avail_pts, pts_achieved_perc)
 head(lowest_pts_perc_season, 5)
 
+# most points to not win the league
+most_pts_not_premiers_season = arrange(a_league_womens_tables, desc(Pts)) %>%
+  filter(premiers == 0) %>%
+  select(season, Team, Pld, Pts) 
+head(most_pts_not_premiers_season, 5)
+
+# least points to win the league
+least_pts_premiers_season = arrange(a_league_womens_tables, Pts) %>%
+  filter(premiers == 1) %>%
+  select(season, Team, Pld, Pts)
+head(least_pts_premiers_season, 5)
+
+# biggest & smallest winning margin in league
+most_winning_margin_season = title_race_totals %>%
+  arrange(desc(margin_pts), desc(margin_GD), desc(margin_GF)) %>%
+  left_join(a_league_womens_tables, by = c("season" = "season")) %>%
+  filter(Pos == 1) %>%
+  select(season, Team, margin_pts, margin_GD, margin_GF)
+head(most_winning_margin_season, 5)
+
+least_winning_margin_season = title_race_totals %>%
+  arrange(margin_pts, margin_GD, margin_GF) %>%
+  left_join(a_league_womens_tables, by = c("season" = "season")) %>%
+  filter(Pos == 1) %>%
+  select(season, Team, margin_pts, margin_GD, margin_GF)
+head(least_winning_margin_season, 5)
 
 # highest movement in final position
 highest_mvmt_up_season = arrange(a_league_womens_tables, desc(pos_diff)) %>%
@@ -335,8 +463,11 @@ error_check_pld = a_league_womens_tables %>%
 error_check_results = season_totals %>%
   filter(!Total_W == Total_L)
 
-error_check_gd = season_totals %>%
+error_check_gd_season = season_totals %>%
   filter(!Total_GD == 0)
+
+error_check_gd = a_league_womens_tables %>%
+  filter(!(GD_check == 0))
 
 error_check_pos = group_by(a_league_womens_tables, season) %>%
   summarise(count = n(),
@@ -368,8 +499,11 @@ make_graph("CAN") # Canberra United - team does not exist in ALM
 names(a_league_womens_all_time) <- gsub(x = names(a_league_womens_all_time), pattern = "_", replacement = " ") 
 
 setwd(output_path)
-write.csv(a_league_womens_tables, file = "a_league_womens_tables_all.csv")
+save(tables, file = "a_league_womens_tables_raw.Rdata")
+save(a_league_womens_tables, file = "a_league_womens_tables.Rdata")
+write.csv(a_league_womens_tables, file = "a_league_womens_tables_full.csv")
 write.csv(a_league_womens_all_time, file = "a_league_womens_all_time.csv")
+#write.csv(a_league_womens_all_time_wiki, file = "a_league_womens_all_time_wiki.csv")
 setwd(path) 
 
 # export single graph
@@ -391,11 +525,14 @@ setwd(path)
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # End
 
+
+# To do:
+# Validate wikipedia data against another source.
+
+
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Test
-j = 7
-seasons[j]
-wiki_name[j]
-wiki_table_no[j]
 # read one league table manually
 table = read_html("https://en.wikipedia.org/wiki/2014_W-League_(Australia)")
 tables_all <- table %>%

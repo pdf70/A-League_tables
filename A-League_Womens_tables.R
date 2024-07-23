@@ -16,7 +16,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Libraries & directories
 
-# Read in data files
+# Set directory paths
 path = "C:/Users/fallo/OneDrive/Documents/Pete/R-files"
 input_path = paste(path, "/Input", sep="")
 output_path = paste(path, "/R_output", sep="")
@@ -49,7 +49,7 @@ wiki_name = c("_W-League", "_W-League_(Australia)", rep("_W-League", 4), "_W-Lea
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Functions 
-make_graph = function(team_abbrev) {
+make_graph_alw = function(team_abbrev) {
   data_for_graph = a_league_womens_tables %>% 
     filter(abbrev == team_abbrev)
   
@@ -59,6 +59,7 @@ make_graph = function(team_abbrev) {
   min_yr = min(data_for_graph$yr_end)
   max_yr = max(data_for_graph$yr_end)
   discont_yr = ifelse(team_abbrev == "CCM", 2010, 2099)
+  league_name = "A-League Women"
   
   #Breaks for background rectangles, other formatting
   # Update these values whenever the no. of teams in the league changes
@@ -72,7 +73,7 @@ make_graph = function(team_abbrev) {
   graph_1 = ggplot(data_for_graph, aes(x = yr_end, y = Pos, group=yr_end<=discont_yr)) +
     geom_line(linewidth=1.15, colour = data_for_graph$team_colours[1]) +
     geom_point(aes(colour=as.factor(champion), size = as.factor(champion))) +
-    scale_colour_manual(values = c(data_for_graph$second_colour[1], data_for_graph$champ_colour[1])) +
+    scale_colour_manual(values = c(data_for_graph$second_colour[1], data_for_graph$champ_colour_alw[1])) +
     scale_size_manual(values = c(2,4)) +
     
     # axes
@@ -85,7 +86,7 @@ make_graph = function(team_abbrev) {
     theme(panel.border = element_rect(fill=NA)) +
     
     # titles
-    ggtitle(paste("A-League Women's Position of", data_for_graph$current_name[1], "from", start_yr, "to", end_yr)) + 
+    ggtitle(paste("Position of", data_for_graph$current_name[1], "in", league_name, "from", start_yr, "to", end_yr)) + 
     theme(plot.title = element_text(lineheight=1.0, face="bold", hjust = 0.5)) +
     labs(x="Year", y="Position") +
     theme(axis.title = element_text(face = "bold")) +
@@ -102,12 +103,9 @@ make_graph = function(team_abbrev) {
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Read in input files
-setwd(input_path)
-a_leagues_teams = read_csv("a_leagues_teams.csv")
-
+# Read in external data
 # read all league tables in one loop
-# to read a league table manually, see A-League_workings.R, e.g. read_html("https://en.wikipedia.org/wiki/2019-20_A-League")
+# to read a league table manually, see code at bottom, read_html("https://en.wikipedia.org/wiki/2019-20_A-League")
 tables = list()
 for (j in 1:length(seasons)) {
   table = read_html(paste("https://en.wikipedia.org/wiki/", seasons[j], wiki_name[j], sep = ""))
@@ -139,17 +137,38 @@ for (j in 1:length(seasons)) {
 tables_all = do.call(rbind, lapply(tables, as.data.frame))
 
 
+# read in grand final details, including runners-up
+table_premiers_clean = read_html("https://en.wikipedia.org/wiki/A-League_Women_records_and_statistics") %>%
+  html_nodes(".wikitable") %>%
+  html_table(fill = TRUE)
+
+table_other = table_premiers_clean[[1]] %>%
+  select(c(1,3,5)) %>%
+  mutate(Season = sub("-", "-", Season)) %>%
+  filter(Season %in% seasons)
+colnames(table_other) = c("Season", "Winners", "Runners_up")
+
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Read in input files
+setwd(input_path)
+a_leagues_teams = read_csv("a_leagues_teams.csv")
+
+
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Select relevant data, and then data manipulations
 a_league_womens_tables = tables_all %>% 
   mutate(Team = str_replace(Team, "\\[.*\\]", ""),            # remove text inside square brackets
          champion = ifelse(substr(Team, nchar(Team) - 2, nchar(Team)) == "(C)", 1, 0),
          premiers = ifelse(Pos == 1, 1, 0),
+         runners_up = 0,
          finals = ifelse(str_detect(tolower(Qualification), pattern = "finals"), 1, 0),
          Team = str_replace(Team, " \\(C\\)", ""),            # to get consistency in team name
          Pts = as.numeric(str_replace(Pts, "\\[.*\\]", "")),
-         pts_deducted = as.numeric(Pts) - (3 * W + D),
-         max_avail_pts = Pld * 3,
+         pts_per_win = 3,
+         pts_per_draw = 1,
+         pts_deducted = Pts - (pts_per_win * W + pts_per_draw * D),
+         max_avail_pts = Pld * pts_per_win,
          pts_achieved_perc = Pts / max_avail_pts,
          goal_diff = GF - GA,
          GD_prefix = substr(GD,1,1),
@@ -160,12 +179,14 @@ a_league_womens_tables = tables_all %>%
            TRUE ~ -1),
          GD_numeric = ifelse(GD_prefix == "0", 0, as.numeric(substr(GD,2,nchar(GD)))) * GD_sign,
          GD_check = GD_numeric - goal_diff, 
-         yr_end = as.numeric(substr(season, 1, 4)) + 1) %>%
+         goals_per_game = round(GF / Pld, 2),
+         yr_end = as.numeric(substr(season, 1, 4)) + 1,
+         wins_for_tiebreak = ifelse(yr_end < 2024, 0, W)) %>%   # competition rules changed 2nd tie-breaker to W from 2023-24.
   group_by(season) %>%
   mutate(count_teams = n(),
          wooden_spoon = ifelse(Pos == max(Pos), 1, 0)) %>%
   ungroup() %>%
-  select(Pos:finals, count_teams:wooden_spoon, pts_deducted:yr_end)
+  select(Pos:finals, count_teams:wooden_spoon, pts_per_win:wins_for_tiebreak)
 
 # Create a table of team names, including history & past team name changes
 teams = as_tibble(unique(a_league_womens_tables$Team))
@@ -182,25 +203,38 @@ a_league_womens_tables_all = left_join(a_league_womens_tables, teams_all, by = c
 # Add additional information of previous season's finishing position
 a_league_womens_tables = a_league_womens_tables_all %>%
   arrange(current_name, season_no) %>%
-  mutate(prev_pos = ifelse(current_name == lag(current_name), lag(Pos), NA)) %>%
+  left_join(table_other, by = c("season" = "Season")) %>%
+  mutate(runners_up = ifelse(current_name == Runners_up, 1, 0),
+         gf_years = 1,
+         grand_finalist = (champion + runners_up) * gf_years,
+         prev_pos = ifelse(current_name == lag(current_name), lag(Pos), NA)) %>%
   mutate(next_pos = ifelse(current_name == lead(current_name), lead(Pos), NA)) %>%
   arrange(season_no, Pos) %>%
   mutate(pos_diff = ifelse(is.na(prev_pos), NA, -(Pos - prev_pos)),
          pos_abs_diff = abs(pos_diff)) %>%
   group_by(current_name) %>%
   mutate(cum_champions = cumsum(champion),
+         streak_champion = c(ave(c(0, champion), cumsum(c(0, champion) == 0), FUN = seq_along) - 1)[-1],
+         streak_missed_champion = c(ave(c(0, champion), cumsum(c(0, champion) > 0), FUN = seq_along) - 1)[-1],
+         cum_runners_up = cumsum(runners_up),
+         streak_runners_up = c(ave(c(0, runners_up), cumsum(c(0, runners_up) == 0), FUN = seq_along) - 1)[-1],
          cum_premiers = cumsum(premiers),
+         streak_premiers = c(ave(c(0, premiers), cumsum(c(0, premiers) == 0), FUN = seq_along) - 1)[-1],
+         streak_missed_premiers = c(ave(c(0, premiers), cumsum(c(0, premiers) > 0), FUN = seq_along) - 1)[-1],
          cum_finals = cumsum(finals),
          streak_finals = c(ave(c(0, finals), cumsum(c(0, finals) == 0), FUN = seq_along) - 1)[-1],
-         streak_missed_finals = c(ave(c(0, finals), cumsum(c(0, finals) > 0), FUN = seq_along) - 1)[-1]) %>%
-  ungroup()
+         streak_missed_finals = c(ave(c(0, finals), cumsum(c(0, finals) > 0), FUN = seq_along) - 1)[-1],
+         cum_grand_finals = cumsum(grand_finalist),
+         streak_grand_finals = c(ave(c(0, grand_finalist), cumsum(c(0, grand_finalist) == 0), FUN = seq_along) - 1)[-1],
+         streak_missed_grand_finals = c(ave(c(0, grand_finalist), cumsum(c(0, grand_finalist) > 0), FUN = seq_along) - 1)[-1]) %>%
+  ungroup() %>%
+  mutate(row_number = row_number())
 
-rm("a_league_womens_tables_all")
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Analysis of A-League tables data
 # Make all-time league table
-a_league_womens_all_time = group_by(a_league_womens_tables, current_name) %>%
+a_league_womens_all_time_league_table = group_by(a_league_womens_tables, current_name) %>%
   summarise(count = n(),
             Total_Pld = sum(Pld),
             Total_W = sum(W),
@@ -212,6 +246,7 @@ a_league_womens_all_time = group_by(a_league_womens_tables, current_name) %>%
             Total_Pts = sum(Pts),
             pts_per_game = round(sum(Pts) / sum(Pld), 2),
             count_champions = sum(champion),
+            count_runners_up = sum(runners_up),
             count_premiers = sum(premiers),
             count_finals = sum(finals),
             count_1st = sum(Pos == 1),
@@ -222,10 +257,10 @@ a_league_womens_all_time = group_by(a_league_womens_tables, current_name) %>%
             count_6th = sum(Pos == 6),
             best = min(Pos),
             count_spoon = sum(wooden_spoon),
+            count_gf = sum(grand_finalist),
             first_season = min(season),
             last_season = max(season)) %>%
-  arrange(desc(Total_Pts), desc(Total_GD), desc(Total_GF))
-
+  arrange(desc(Total_Pts), desc(Total_W), desc(Total_GD), desc(Total_GF))
 
 # champions by final position
 champions = filter(a_league_womens_tables, champion == 1)
@@ -243,7 +278,10 @@ season_totals = group_by(a_league_womens_tables, season, yr_end) %>%
             Total_GF = sum(GF),
             Total_GA = sum(GA),
             Total_GD = sum(goal_diff),
-            Total_Pts = sum(Pts))
+            Total_Pts = sum(Pts),
+            max_ave_goals_scored_team = max(goals_per_game),
+            min_ave_goals_scored_team = min(goals_per_game)) %>%
+  mutate(ave_goals_scored_game = round(Total_GF / (0.5 * Total_Pld), 1))
 
 title_race_totals = group_by(a_league_womens_tables, season, yr_end) %>%
   summarise(count = n(),
@@ -265,6 +303,19 @@ club_records = group_by(a_league_mens_tables, current_name) %>%
             lowest_GA = min(GA),
             highest_Pts = max(Pts),
             lowest_Pts = min(Pts))
+
+team_streaks = group_by(a_league_womens_tables, current_name) %>%
+  summarise(count = n(),
+            max_streak_champion = max(streak_champion),
+            max_streak_missed_champion = max(streak_missed_champion),
+            max_streak_runners_up = max(streak_runners_up),
+            streak_premiers = max(streak_premiers),
+            max_streak_missed_premiers = max(streak_missed_premiers),
+            max_streak_finals = max(streak_finals),
+            max_streak_missed_finals = max(streak_missed_finals),
+            max_streak_grand_finals = max(streak_grand_finals),
+            max_streak_missed_grand_finals = max(streak_missed_grand_finals)) %>%
+  arrange(current_name)
 
 # Records for each team in a season
 highest_GF_team = club_records %>%
@@ -433,6 +484,26 @@ pos_changes
 
 
 # Longest streaks
+longest_streaks_champion = arrange(a_league_womens_tables, desc(streak_champion)) %>%
+  select(season, Team, streak_champion)
+head(longest_streaks_champion, 5)
+
+longest_streaks_missed_champion = arrange(a_league_womens_tables, desc(streak_missed_champion)) %>%
+  select(season, Team, streak_missed_champion)
+head(longest_streaks_missed_champion, 5)
+
+longest_streaks_runners_up = arrange(a_league_womens_tables, desc(streak_runners_up)) %>%
+  select(season, Team, streak_runners_up)
+head(longest_streaks_runners_up, 5)
+
+longest_streaks_premiers = arrange(a_league_womens_tables, desc(streak_premiers)) %>%
+  select(season, Team, streak_premiers)
+head(longest_streaks_premiers, 5)
+
+longest_streaks_missed_premiers = arrange(a_league_womens_tables, desc(streak_missed_premiers)) %>%
+  select(season, Team, streak_missed_premiers)
+head(longest_streaks_missed_premiers, 5)
+
 longest_streaks_finals = arrange(a_league_womens_tables, desc(streak_finals)) %>%
   select(season, Team, streak_finals)
 head(longest_streaks_finals, 5)
@@ -440,6 +511,14 @@ head(longest_streaks_finals, 5)
 longest_streaks_missed_finals = arrange(a_league_womens_tables, desc(streak_missed_finals)) %>%
   select(season, Team, streak_missed_finals)
 head(longest_streaks_missed_finals, 5)
+
+longest_streaks_grand_finals = arrange(a_league_womens_tables, desc(streak_grand_finals)) %>%
+  select(season, Team, streak_grand_finals)
+head(longest_streaks_grand_finals, 5)
+
+longest_streaks_missed_grand_finals = arrange(a_league_womens_tables, desc(streak_missed_grand_finals)) %>%
+  select(season, Team, streak_missed_grand_finals)
+head(longest_streaks_missed_grand_finals, 5)
 
 
 # no. of teams in finals
@@ -455,7 +534,7 @@ teams_unique = unique(a_league_womens_tables$abbrev)
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # checks on data for consistency
 error_check_pts = a_league_womens_tables %>% 
-  filter(!Pts == (3 * W + D))
+  filter(!Pts == (pts_per_win * W + pts_per_draw * D))
 
 error_check_pld = a_league_womens_tables %>%
   filter(!Pld == (W + D + L))
@@ -476,44 +555,54 @@ error_check_pos = group_by(a_league_womens_tables, season) %>%
          pos_diff = sum_pos - exp_sum_pos) %>%   # error if calculated difference (pos_diff) is not zero
   filter(!(pos_diff == 0))
 
+error_sorted_pos = a_league_womens_tables %>%
+  arrange(season_no, desc(Pts), desc(wins_for_tiebreak), desc(goal_diff), desc(GF)) %>%
+  mutate(sorted_row_number = row_number(),
+         row_no_diff = row_number - sorted_row_number) %>%
+  filter(!(row_no_diff == 0))
+
+check_identical_pos = a_league_womens_tables %>%
+  group_by(season_no, Pts, wins_for_tiebreak, goal_diff, GF) %>%
+  summarise(count_seasons = n()) %>%
+  filter(count_seasons > 1)
+
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # run function to produce graph for a specific team
-make_graph("ADE") 
-make_graph("SYD")
-make_graph("CCM") 
-make_graph("NEW")
-make_graph("PER")
-make_graph("BRI")
-make_graph("MVI") 
-make_graph("WEL")
-make_graph("MCI")
-make_graph("WSW")
-make_graph("WUN")
-#make_graph("MAC"). Team does not exist for ALW
-make_graph("CAN") # Canberra United - team does not exist in ALM
+make_graph_alw("ADE")     # Adelaide United 
+make_graph_alw("SYD")     # Sydney FC
+make_graph_alw("CCM")     # Central Coast Mariners
+make_graph_alw("NEW")     # Newcastle Jets
+make_graph_alw("PER")     # Perth Glory
+make_graph_alw("BRI")     # Brisbane Roar
+make_graph_alw("MVI")     # Melbourne Victory
+make_graph_alw("WEL")     # Wellington Phoenix
+make_graph_alw("MCI")     # Melbourne City 
+make_graph_alw("WSW")     # Western Sydney Wanderers
+make_graph_alw("WUN")     # Western United
+#make_graph_alw("MAC").    Macarthur FC. Team does not exist for ALW
+make_graph_alw("CAN")     # Canberra United
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # export file to csv format
-names(a_league_womens_all_time) <- gsub(x = names(a_league_womens_all_time), pattern = "_", replacement = " ") 
+names(a_league_womens_all_time_league_table) <- gsub(x = names(a_league_womens_all_time_league_table), pattern = "_", replacement = " ") 
 
 setwd(output_path)
 save(tables, file = "a_league_womens_tables_raw.Rdata")
 save(a_league_womens_tables, file = "a_league_womens_tables.Rdata")
 write.csv(a_league_womens_tables, file = "a_league_womens_tables_full.csv")
-write.csv(a_league_womens_all_time, file = "a_league_womens_all_time.csv")
-#write.csv(a_league_womens_all_time_wiki, file = "a_league_womens_all_time_wiki.csv")
+write.csv(a_league_womens_all_time_league_table, file = "a_league_womens_all_time_league_table.csv")
 setwd(path) 
 
 # export single graph
-setwd(output_path)
-ggsave("graph_ggsave.pdf")
-setwd(path)
+#setwd(output_path)
+#ggsave("graph_ggsave.pdf")
+#setwd(path)
 
 # export multiple graphs
 for (i in 1:length(teams_unique)) {
-  make_graph(teams_unique[i])
+  make_graph_alw(teams_unique[i])
   setwd(output_path)
   #  ggsave(paste("graph_alm_", teams_unique[i], ".pdf", sep=""))
   ggsave(paste("performance_chart_alw_", teams_unique[i], ".png", sep=""))
@@ -529,6 +618,11 @@ setwd(path)
 # To do:
 # Validate wikipedia data against another source.
 
+# Graph of season_totals data - ave_goals_scored_game, min & max
+
+
+# Future:
+# Auckland FC from 2024-25
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

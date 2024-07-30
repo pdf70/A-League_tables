@@ -60,6 +60,7 @@ make_graph_alw = function(team_abbrev) {
   max_yr = max(data_for_graph$yr_end)
   discont_yr = ifelse(team_abbrev == "CCM", 2010, 2099)
   league_name = "A-League Women"
+  team_name = data_for_graph$current_name[1]
   
   #Breaks for background rectangles, other formatting
   # Update these values whenever the no. of teams in the league changes
@@ -73,7 +74,7 @@ make_graph_alw = function(team_abbrev) {
   graph_1 = ggplot(data_for_graph, aes(x = yr_end, y = Pos, group=yr_end<=discont_yr)) +
     geom_line(linewidth=1.15, colour = data_for_graph$team_colours[1]) +
     geom_point(aes(colour=as.factor(champion), size = as.factor(champion))) +
-    scale_colour_manual(values = c(data_for_graph$second_colour[1], data_for_graph$champ_colour_alw[1])) +
+    scale_colour_manual(values = c(data_for_graph$second_colour[1], data_for_graph$champ_colour[1])) +
     scale_size_manual(values = c(2,4)) +
     
     # axes
@@ -86,7 +87,7 @@ make_graph_alw = function(team_abbrev) {
     theme(panel.border = element_rect(fill=NA)) +
     
     # titles
-    ggtitle(paste("Position of", data_for_graph$current_name[1], "in", league_name, "from", start_yr, "to", end_yr)) + 
+    ggtitle(paste("Position of", team_name, "in", league_name, "from", start_yr, "to", end_yr)) + 
     theme(plot.title = element_text(lineheight=1.0, face="bold", hjust = 0.5)) +
     labs(x="Year", y="Position") +
     theme(axis.title = element_text(face = "bold")) +
@@ -116,7 +117,7 @@ for (j in 1:length(seasons)) {
   tables[[j]] <- tables_wiki[[wiki_table_no[j]]]  %>% # added to my list
     mutate(season_no = j, season = seasons[j])
   
-  if (j%%5==0) print(paste("season = ", seasons[j])) 
+  if (j%%5==0) print(paste("season = ", seasons[j], sep="")) 
 }
 
 # Review headers in each of the tables - need consistency of names for combining tables
@@ -245,6 +246,7 @@ a_league_womens_all_time_league_table = group_by(a_league_womens_tables, current
             Total_GD = sum(goal_diff),
             Total_Pts = sum(Pts),
             pts_per_game = round(sum(Pts) / sum(Pld), 2),
+            win_perc = round(Total_W / Total_Pld * 100, 2),
             count_champions = sum(champion),
             count_runners_up = sum(runners_up),
             count_premiers = sum(premiers),
@@ -580,7 +582,7 @@ make_graph_alw("WEL")     # Wellington Phoenix
 make_graph_alw("MCI")     # Melbourne City 
 make_graph_alw("WSW")     # Western Sydney Wanderers
 make_graph_alw("WUN")     # Western United
-#make_graph_alw("MAC").    Macarthur FC. Team does not exist for ALW
+#make_graph_alw("MAC").     Macarthur FC. Team does not exist for ALW
 make_graph_alw("CAN")     # Canberra United
 
 
@@ -593,6 +595,7 @@ save(tables, file = "a_league_womens_tables_raw.Rdata")
 save(a_league_womens_tables, file = "a_league_womens_tables.Rdata")
 write.csv(a_league_womens_tables, file = "a_league_womens_tables_full.csv")
 write.csv(a_league_womens_all_time_league_table, file = "a_league_womens_all_time_league_table.csv")
+write.csv(season_totals, file = "a_league_womens_season_totals.csv")
 setwd(path) 
 
 # export single graph
@@ -618,11 +621,9 @@ setwd(path)
 # To do:
 # Validate wikipedia data against another source.
 
-# Graph of season_totals data - ave_goals_scored_game, min & max
-
 
 # Future:
-# Auckland FC from 2024-25
+# Auckland FC from 2025-26
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

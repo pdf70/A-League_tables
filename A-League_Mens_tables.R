@@ -57,8 +57,8 @@ make_graph_alm = function(team_abbrev) {
   min_yr = min(data_for_graph$yr_end)
   max_yr = max(data_for_graph$yr_end)
   discont_yr = 2099
-  
   league_name = "A-League Men"
+  team_name = data_for_graph$current_name[1]
   colour_main = data_for_graph$team_colours[1]
   colour_orig = data_for_graph$orig_team_colours[1]
   line_colour = ifelse(data_for_graph$yr_end <= 2014 & team_abbrev == "MCI", colour_orig, colour_main)
@@ -75,7 +75,7 @@ make_graph_alm = function(team_abbrev) {
   graph_1 = ggplot(data_for_graph, aes(x = yr_end, y = Pos, group=yr_end<=discont_yr)) +
     geom_line(linewidth=1.15, colour = line_colour) +
     geom_point(aes(colour=as.factor(champion), size = as.factor(champion))) +
-    scale_colour_manual(values = c(data_for_graph$second_colour[1], data_for_graph$champ_colour_alm[1])) +
+    scale_colour_manual(values = c(data_for_graph$second_colour[1], data_for_graph$champ_colour[1])) +
     scale_size_manual(values = c(2,4)) +
     
     # axes
@@ -88,7 +88,7 @@ make_graph_alm = function(team_abbrev) {
     theme(panel.border = element_rect(fill=NA)) +
     
     # titles
-    ggtitle(paste("Position of", data_for_graph$current_name[1], "in", league_name, "from", start_yr, "to", end_yr)) + 
+    ggtitle(paste("Position of", team_name, "in", league_name, "from", start_yr, "to", end_yr)) + 
     theme(plot.title = element_text(lineheight=1.0, face="bold", hjust = 0.5)) +
     labs(x="Year", y="Position") +
     theme(axis.title = element_text(face = "bold")) +
@@ -118,7 +118,7 @@ for (j in 1:length(seasons)) {
   tables[[j]] <- tables_wiki[[wiki_table_no[j]]]  %>% # added to my list
     mutate(season_no = j, season = seasons[j])
   
-  if (j%%5==0) print(paste("season = ", seasons[j])) 
+  if (j%%5==0) print(paste("season = ", seasons[j], sep="")) 
 }
 
 # Review headers in each of the tables - need consistency of names for combining tables
@@ -248,6 +248,7 @@ a_league_mens_all_time_league_table = group_by(a_league_mens_tables, current_nam
             Total_GD = sum(goal_diff),
             Total_Pts = sum(Pts),
             pts_per_game = round(sum(Pts) / sum(Pld), 2),
+            win_perc = round(Total_W / Total_Pld * 100, 2),
             count_champions = sum(champion),
             count_runners_up = sum(runners_up),
             count_premiers = sum(premiers),
@@ -578,15 +579,15 @@ make_graph_alm("NEW")    # Newcastle Jets
 make_graph_alm("PER")    # Perth Glory
 make_graph_alm("BRI")    # Brisbane Roar
 make_graph_alm("MVI")    # Melbourne Victory
-#make_graph_alm("NZK").   New Zealand Kingz - 2 seasons from 2005-06 to 2006-07
+#make_graph_alm("NZK").    New Zealand Knights - 2 seasons from 2005-06 to 2006-07
 make_graph_alm("WEL")    # Wellington Phoenix
-#make_graph_alm("GCU").   Gold Coast United - 3 seasons from 2009-10 to 2011-12
-#make_graph_alm("NQF").   North Queensland Fury - 2 seasons from 2009-10 to 2010-11
+#make_graph_alm("GCU").    Gold Coast United - 3 seasons from 2009-10 to 2011-12
+#make_graph_alm("NQF").    North Queensland Fury - 2 seasons from 2009-10 to 2010-11
 make_graph_alm("MCI")    # Melbourne City
 make_graph_alm("WSW")    # Western Sydney Wanderers
 make_graph_alm("WUN")    # Western United
 make_graph_alm("MAC")    # Macarthur FC
-#make_graph_alm("CAN")   Canberra United - team does not exist in ALM
+#make_graph_alm("CAN")     Canberra United - team does not exist in ALM
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -598,6 +599,7 @@ save(tables, file = "a_league_mens_tables_raw.Rdata")
 save(a_league_mens_tables, file = "a_league_mens_tables.Rdata")
 write.csv(a_league_mens_tables, file = "a_league_mens_tables_full.csv")
 write.csv(a_league_mens_all_time_league_table, file = "a_league_mens_all_time_league_table.csv")
+write.csv(season_totals, file = "a_league_mens_season_totals.csv")
 setwd(path) 
 
 # export single graph
@@ -621,7 +623,6 @@ setwd(path)
 
 
 # To do:
-# Graph of season_totals data - ave_goals_scored_game, min & max
 
 
 # Future:

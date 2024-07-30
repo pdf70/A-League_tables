@@ -1,0 +1,17 @@
+current_name,abbrev,team_colours,second_colour,orig_team_colours,orig_second_colour,backup_team_colours,backup_second_colour,champ_colour,prev_champ_colour,team_url_men,team_url_women
+Adelaide United,ADE,#D50032,navyblue,#D50032,navyblue,#E3001B,navyblue,#bdb76b,gold,/wiki/Adelaide_United_FC,/wiki/Adelaide_United_FC_(A-League_Women)
+Brisbane Roar,BRI,#F26522,black,#F26522,black,#CB601C,black,#bdb76b,gold,/wiki/Brisbane_Roar_FC,/wiki/Brisbane_Roar_FC_(A-League_Women)
+Central Coast Mariners,CCM,#FEDF00,navyblue,#FEDF00,navyblue,#F8BE02,navyblue,#bdb76b,red,/wiki/Central_Coast_Mariners_FC,/wiki/Central_Coast_Mariners_FC_(A-League_Women)
+Gold Coast United,GCU,#FCE000,blue,#FCE000,blue,#C19B24,blue,#bdb76b,red,/wiki/Gold_Coast_United_FC,NA
+Macarthur FC,MAC,#434347,white,#434347,white,#000000,red,#bdb76b,red,/wiki/Macarthur_FC,NA
+Melbourne City,MCI,#81C1FF,white,#e31934,white,#0355AF,red,#bdb76b,red,/wiki/Melbourne_City_FC,/wiki/Melbourne_City_FC_(A-League_Women)
+Melbourne Victory,MVI,#000030,white,#000030,#3E444D,navyblue,white,#bdb76b,red,/wiki/Melbourne_Victory_FC,/wiki/Melbourne_Victory_FC_(A-League_Women)
+New Zealand Knights,NZK,#0000A0,black,#0000A0,black,#0000A0,black,#bdb76b,red,/wiki/New_Zealand_Knights_FC,NA
+Newcastle Jets,NEW,#b89c5c,#024c91,#b89c5c,#024c91,blue,red,#bdb76b,red,/wiki/Newcastle_Jets_FC,/wiki/Newcastle_Jets_FC_(A-League_Women)
+North Queensland Fury,NQF,limegreen,green,limegreen,green,limegreen,green,#bdb76b,red,/wiki/North_Queensland_Fury_FC,NA
+Perth Glory,PER,#470A68,yellow,#470A68,yellow,purple,yellow,#bdb76b,red,/wiki/Perth_Glory_FC,/wiki/Perth_Glory_FC_(A-League_Women)
+Sydney FC,SYD,#77BBFF,#274A71,#77BBFF,#274A71,lightblue,navyblue,#bdb76b,red,/wiki/Sydney_FC,/wiki/Sydney_FC_(A-League_Women)
+Wellington Phoenix,WEL,#E3C922,black,#E3C922,black,yellow,black,#bdb76b,red,/wiki/Wellington_Phoenix_FC,/wiki/Wellington_Phoenix_FC_(A-League_Women)
+Western Sydney Wanderers,WSW,#000000,#CD1231,#000000,#CD1231,#000000,red,#bdb76b,gold,/wiki/Western_Sydney_Wanderers_FC,/wiki/Western_Sydney_Wanderers_FC_(A-League_Women)
+Western United,WUN,#2bb56c,black,#2bb56c,black,#2bb56c,black,#bdb76b,red,/wiki/Western_United_FC,/wiki/Western_United_FC_(A-League_Women)
+Canberra United,CAN,#94c841,black,#94c841,black,limegreen,black,#bdb76b,red,NA,/wiki/Canberra_United_FC
